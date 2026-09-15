@@ -1,0 +1,6 @@
+{
+  "name": "claude-roulette",
+  "version": "0.1.0",
+  "description": "A private text chat with another human while Claude works, with random matching, interests, next, block, report, and automatic task completion handling.",
+  "author": { "name": "Claude Roulette contributors" }
+}

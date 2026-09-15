@@ -1,0 +1,4 @@
+{
+  "description": "Native Claude Mods chat pane and immediate /roulette command. Task lifecycle signals contain no prompt, code, or transcript content.",
+  "modules": ["./register.ts"]
+}

@@ -1,0 +1,36 @@
+{
+  "name": "claude-roulette",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Meet another human while Claude is thinking.",
+  "type": "module",
+  "engines": {
+    "node": ">=24.8.0"
+  },
+  "bin": {
+    "claude-roulette": "dist/src/cli.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p plugin/tsconfig.json",
+    "test": "vitest run",
+    "chat": "tsx src/cli.tsx",
+    "demo": "tsx src/cli.tsx --demo",
+    "check": "npm run typecheck && npm test && npm run build"
+  },
+  "dependencies": {
+    "ink": "^6.8.0",
+    "react": "^19.2.0",
+    "ws": "^8.18.3",
+    "zod": "^4.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/react": "^19.2.0",
+    "ink-testing-library": "^4.0.0",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0",
+    "vitest": "^5.0.1",
+    "@types/ws": "^8.18.1"
+  }
+}
