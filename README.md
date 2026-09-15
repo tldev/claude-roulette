@@ -18,7 +18,7 @@ CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1 claude --plugin-dir "$PWD/plugin"
 
 Run `/roulette`, accept the community rules, and start a Claude task. Matching starts while the task runs. The pane includes interests, language preferences, next, pause, typing indicators, block/report, and an option to keep a conversation going after Claude finishes.
 
-The mod connects to `https://clauderoulette.thelazydeveloper.com` by default. Set `ROULETTE_URL` to use another compatible server. No npm install is needed for the native mod.
+The mod connects to the hosted lounge automatically. No server configuration or npm install is needed for the native mod.
 
 Claude Mods is experimental. The plugin was validated and rendered in Claude Code 2.1.270 and typechecked against the published 2.1.271 API. See the [integration guide](docs/claude-integration.md) for the exact verified interfaces and layout requirements.
 

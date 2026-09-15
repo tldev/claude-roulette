@@ -104,7 +104,7 @@ export class RouletteClient {
       } catch { this.reconnectAllowed = false; this.patch({ error: 'Server sent invalid JSON.' }); socket.close(1002); }
     });
     socket.on('error', () => {
-      if (this.socket === socket && !this.stopped) this.patch({ error: 'Cannot reach the lounge. Check the server URL and connection.' });
+      if (this.socket === socket && !this.stopped) this.patch({ error: 'Cannot reach the lounge. Check your internet connection or try again shortly.' });
     });
     socket.on('close', (code) => {
       if (this.socket !== socket) return;

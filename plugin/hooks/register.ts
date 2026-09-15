@@ -27,7 +27,7 @@ export function register(on: On): void {
         controller = created;
         await $.command.register({ name: 'roulette', description: 'Meet another human while Claude works', immediate: true });
       } catch {
-        $.ui.log('Roulette could not initialize. Check ROULETTE_URL and your Claude Mods version.');
+        $.ui.log('Roulette could not initialize. Check that your Claude Code version supports Mods.');
       }
     }
     return next(e);

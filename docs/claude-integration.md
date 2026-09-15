@@ -4,15 +4,13 @@ Claude Roulette includes a real Claude Mods plugin. `/roulette` opens an interac
 
 ## Run it
 
-The hosted lounge is the default. From this repository:
+The mod connects to the hosted lounge automatically. From this repository:
 
 ```sh
-CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1 \
-ROULETTE_URL=https://clauderoulette.thelazydeveloper.com \
-claude --plugin-dir "$PWD/plugin"
+CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1 claude --plugin-dir "$PWD/plugin"
 ```
 
-For a deployed server, set `ROULETTE_URL=https://your-roulette-domain`. Remote servers require HTTPS. HTTP is accepted only for loopback hosts. This command scopes the plugin to the launched session and does not edit your Claude settings or install it globally.
+No server configuration is needed. The feature flag enables Claude's experimental Mods API. This command scopes the plugin to the launched session and does not edit your Claude settings or install it globally.
 
 1. Run `/roulette` in Claude Code.
 2. Accept the 18+ community rules. Set interests and a language if you want.

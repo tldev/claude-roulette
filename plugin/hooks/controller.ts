@@ -300,7 +300,7 @@ export class RouletteController {
     });
     if (response.text.length > 2_000_000) throw new Error('Server response exceeded the size limit.');
     let value: unknown;
-    try { value = response.text ? JSON.parse(response.text) : {}; } catch { throw new Error('Server did not return JSON. Check ROULETTE_URL.'); }
+    try { value = response.text ? JSON.parse(response.text) : {}; } catch { throw new Error('The lounge returned an unexpected response.'); }
     if (!response.ok) {
       const detail = value as { error?: { code?: string; message?: string } };
       if (generation === this.generation && sessionId === this.sessionId) {
