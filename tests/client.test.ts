@@ -25,9 +25,11 @@ describe('client boundaries', () => {
   it('keeps a private persistent identity per server and does not replace unreadable config', () => {
     const directory = mkdtempSync(join(tmpdir(), 'roulette-config-')); cleanups.push(() => rmSync(directory, { recursive: true }));
     const config = loadConfig(directory);
+    config.theme = 'light';
     const token = identityFor(config, 'https://one.example');
     expect(identityFor(config, 'https://two.example')).not.toBe(token);
     saveConfig(config, directory);
+    expect(loadConfig(directory).theme).toBe('light');
     expect(identityFor(loadConfig(directory), 'https://one.example')).toBe(token);
     expect(statSync(join(directory, 'config.json')).mode & 0o777).toBe(0o600);
     expect(readFileSync(join(directory, 'config.json'), 'utf8')).toContain(token);

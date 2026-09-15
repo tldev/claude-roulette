@@ -2,7 +2,8 @@ import React from 'react';
 import { Box, Text } from 'ink';
 import type { ClientSnapshot } from '../client/client.js';
 import { safeText } from '../shared/protocol.js';
-import { clip, displayWidth, elapsed, palette as c, profileSummary, tail, timeLabel, wrap } from './helpers.js';
+import { usePalette } from './theme-context.js';
+import { clip, displayWidth, elapsed, profileSummary, tail, timeLabel, wrap } from './helpers.js';
 
 export type RouletteViewProps = {
   snapshot: ClientSnapshot;
@@ -19,11 +20,13 @@ export type RouletteViewProps = {
 
 const FRAMES = ['◜', '◠', '◝', '◞', '◡', '◟'];
 
-function Label({ children, color = c.muted }: { children: React.ReactNode; color?: string }) {
-  return <Text color={color} bold>{children}</Text>;
+function Label({ children, color }: { children: React.ReactNode; color?: string }) {
+  const c = usePalette();
+  return <Text color={color ?? c.muted} bold>{children}</Text>;
 }
 
 function Status({ snapshot, now }: { snapshot: ClientSnapshot; now: number }) {
+  const c = usePalette();
   if (snapshot.connection !== 'connected') return <Text color={c.yellow}>○ {snapshot.connection}</Text>;
   if (snapshot.status === 'chatting') return <Text color={c.mint}>● connected · {elapsed(snapshot.matchedAt, now)}</Text>;
   if (snapshot.status === 'queued') return <Text color={c.lavender}>{FRAMES[Math.floor(now / 180) % FRAMES.length]} finding your person</Text>;
@@ -31,6 +34,7 @@ function Status({ snapshot, now }: { snapshot: ClientSnapshot; now: number }) {
 }
 
 function Header({ snapshot, width, now, demo, short = false }: { snapshot: ClientSnapshot; width: number; now: number; demo?: boolean; short?: boolean }) {
+  const c = usePalette();
   if (short) return <Box flexDirection="column" marginBottom={1}>
     <Box justifyContent="space-between"><Text color={c.coral} bold>◈ CLAUDE ROULETTE</Text><Status snapshot={snapshot} now={now} /></Box>
     <Text color={c.muted}>{demo ? 'SIMULATED CHAT · interactive demo' : 'A little company while Claude thinks.'}</Text>
@@ -53,6 +57,7 @@ function Header({ snapshot, width, now, demo, short = false }: { snapshot: Clien
 }
 
 function Queue({ snapshot, now, width, short }: { snapshot: ClientSnapshot; now: number; width: number; short: boolean }) {
+  const c = usePalette();
   const disconnected = snapshot.connection !== 'connected';
   const queued = snapshot.status === 'queued';
   return <Box flexDirection="column" justifyContent="center" alignItems="center" flexGrow={1}>
@@ -80,6 +85,7 @@ export function transcriptLines(snapshot: ClientSnapshot, width: number): ChatLi
 }
 
 function Transcript({ snapshot, width, height, scroll }: { snapshot: ClientSnapshot; width: number; height: number; scroll: number }) {
+  const c = usePalette();
   const lines = transcriptLines(snapshot, width);
   const offset = Math.min(scroll, Math.max(0, lines.length - height));
   const end = Math.max(height, lines.length - offset);
@@ -90,6 +96,7 @@ function Transcript({ snapshot, width, height, scroll }: { snapshot: ClientSnaps
 }
 
 function Rail({ snapshot, now, height }: { snapshot: ClientSnapshot; now: number; height: number }) {
+  const c = usePalette();
   return <Box borderStyle="round" borderColor={c.border} width={29} paddingX={2} flexDirection="column" height={height}>
     <Box marginTop={1}><Label color={c.coral}>THE WAITING ROOM</Label></Box>
     <Text color={c.muted}>A pause. A possibility.</Text>
@@ -109,6 +116,7 @@ function Rail({ snapshot, now, height }: { snapshot: ClientSnapshot; now: number
 }
 
 function Help({ width, height, scroll }: { width: number; height: number; scroll: number }) {
+  const c = usePalette();
   const rows = [
     ['/next', 'Meet someone new'], ['/leave · /join', 'Pause or return to the queue'],
     ['/interests music, rust', 'Choose up to 8 interests'], ['/mode random|interests', 'Change how you match'],
@@ -116,7 +124,7 @@ function Help({ width, height, scroll }: { width: number; height: number; scroll
     ['/report spam', 'Report and end the conversation'], ['Report reasons', 'spam, harassment, sexual, hate, other'],
     ['/stay', 'Keep the chat when Claude finishes'], ['/done · /working', 'Manually update task status'],
     ['Ctrl+N · Ctrl+L', 'Next person · leave room'], ['Page Up · Page Down', 'Scroll the conversation'],
-    ['Tab · Esc', 'Complete a command · dismiss help'], ['/quit', 'Close the lounge'],
+    ['Tab · Esc', 'Complete a command · dismiss help'], ['/theme light|dark|auto', 'Choose readable terminal colors'], ['/quit', 'Close the lounge'],
   ];
   return <Box flexDirection="column" flexGrow={1}>
     <Text color={c.coral} bold>MAKE YOURSELF AT HOME</Text>
@@ -126,6 +134,7 @@ function Help({ width, height, scroll }: { width: number; height: number; scroll
 }
 
 export function RouletteView({ snapshot, width = 108, height = 36, draft = '', cursor = draft.length, scroll = 0, now = Date.now(), demo = false, help = false, helpScroll = 0 }: RouletteViewProps) {
+  const c = usePalette();
   const columns = Math.max(30, width);
   const wide = columns >= 100;
   const short = height < 29;
@@ -171,6 +180,7 @@ export function RouletteView({ snapshot, width = 108, height = 36, draft = '', c
 }
 
 export function ConsentView({ width = 90, height = 32, demo = false }: { width?: number; height?: number; demo?: boolean }) {
+  const c = usePalette();
   const compact = height <= 28 || width < 65;
   const columns = Math.max(30, Math.min(width - 2, 88));
   if (compact) return <Box flexDirection="column" width={columns} paddingX={1}>

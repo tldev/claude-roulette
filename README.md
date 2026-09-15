@@ -34,6 +34,8 @@ npm run chat -- --interests typescript,coffee
 
 The offline demo is clearly labeled and uses a scripted partner. The real client connects to the hosted lounge. The standalone client uses `/done` and `/working` to update task status; the native mod detects it automatically.
 
+Terminal colors adapt to light or dark backgrounds when the terminal reports its theme. Use `--theme light` when launching, or `/theme light` inside the lounge, to choose the light palette explicitly. Your choice is saved. `/theme dark` and `/theme auto` are also available.
+
 | Command | Action |
 | --- | --- |
 | `/next` | Find another person |
@@ -45,6 +47,7 @@ The offline demo is clearly labeled and uses a scripted partner. The real client
 | `/stay` | Keep this conversation when the task finishes |
 | `/done`, `/working` | Update standalone task status |
 | `/help`, `/quit` | Help or exit |
+| `/theme light`, `/theme dark`, `/theme auto` | Choose terminal colors |
 
 Report reasons: spam, harassment, sexual, hate, or other. Use Page Up/Down for scrollback, Tab for command completion, Ctrl+N for next, and Ctrl+L to leave.
 

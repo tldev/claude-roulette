@@ -113,6 +113,29 @@ describe('terminal experience', () => {
     expect(client.events.filter(event => event.type === 'message')).toHaveLength(1);
   });
 
+  it('changes terminal theme without interrupting the conversation or sending it to the peer', async () => {
+    const client = new FakeClient();
+    const onThemeChange = vi.fn();
+    const app = render(<App client={client} initialConsent initialTheme="dark" onThemeChange={onThemeChange} />);
+    await tick();
+    app.stdin.write('/theme light');
+    await tick();
+    app.stdin.write('\r');
+    await tick();
+    expect(onThemeChange).toHaveBeenLastCalledWith('light');
+    expect(app.lastFrame()).toContain('Terminal theme: light.');
+    expect(client.connect).toHaveBeenCalledTimes(1);
+    expect(client.disconnect).not.toHaveBeenCalled();
+    expect(client.events).toHaveLength(0);
+    expect(client.state.status).toBe('chatting');
+    app.stdin.write('/theme neon');
+    await tick();
+    app.stdin.write('\r');
+    await tick();
+    expect(onThemeChange).toHaveBeenCalledTimes(1);
+    expect(app.lastFrame()).toContain('Use /theme light');
+  });
+
   it('strips terminal controls in stranger messages and bounds wrapped lines', () => {
     const lines = transcriptLines(snapshot({ messages: [{ id: 'x', text: '\u001b[2JDo not run \u202Eevil\u0007\n你好 there', from: 'peer', at: now }] }), 12);
     expect(lines.map(line => line.text).join('\n')).not.toMatch(/[\u001b\u202e\u0007]/);

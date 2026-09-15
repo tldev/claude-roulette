@@ -1,17 +1,6 @@
 import { safeText, type Profile } from '../shared/protocol.js';
 
-export const palette = {
-  coral: '#EF9B83',
-  lavender: '#B5A3F4',
-  mint: '#85D9BF',
-  text: '#E7E8EF',
-  muted: '#9297AC',
-  faint: '#60667E',
-  border: '#484D65',
-  yellow: '#E6C88B',
-} as const;
-
-export const COMMANDS = ['/next', '/leave', '/join', '/interests', '/mode', '/language', '/block', '/report', '/done', '/working', '/stay', '/help', '/quit'];
+export const COMMANDS = ['/next', '/leave', '/join', '/interests', '/mode', '/language', '/block', '/report', '/done', '/working', '/stay', '/theme', '/help', '/quit'];
 
 export function elapsed(since: number | undefined, now: number): string {
   const seconds = since ? Math.max(0, Math.floor((now - since) / 1000)) : 0;

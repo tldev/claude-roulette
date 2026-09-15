@@ -4,12 +4,14 @@ import { useApp, useInput, useStdout } from 'ink';
 import type { RouletteClient } from '../client/client.js';
 import { MAX_MESSAGE_LENGTH, ProfileSchema, ReportReasonSchema, safeText } from '../shared/protocol.js';
 import { COMMANDS, parseInterests } from './helpers.js';
+import { ThemeProvider } from './theme-context.js';
+import { parseThemeMode, type ThemeMode, type TerminalTheme } from './theme.js';
 import { ConsentView, RouletteView } from './view.js';
 
 export type TuiClient = Pick<RouletteClient, 'connect' | 'disconnect' | 'send' | 'getSnapshot' | 'subscribe' | 'setProfile' | 'setAvailability' | 'addNotice'>;
-export type AppProps = { client: TuiClient; onExit?: () => void; demo?: boolean; initialConsent?: boolean };
+export type AppProps = { client: TuiClient; onExit?: () => void; demo?: boolean; initialConsent?: boolean; initialTheme?: ThemeMode; detectedTheme?: TerminalTheme; onThemeChange?: (mode: ThemeMode) => void };
 
-type CommandActions = { exit: () => void; toggleHelp: () => void };
+type CommandActions = { exit: () => void; toggleHelp: () => void; setTheme?: (mode: ThemeMode) => void };
 
 export function executeCommand(client: TuiClient, input: string, actions: CommandActions): void {
   const [name = '', ...parts] = input.trim().split(/\s+/);
@@ -45,6 +47,13 @@ export function executeCommand(client: TuiClient, input: string, actions: Comman
       client.setAvailability(snapshot.available, true);
       client.addNotice(snapshot.status === 'chatting' ? 'Stay mode is on. This conversation can continue when Claude finishes.' : 'Stay mode is on. Use /working to meet someone while Claude works.');
       return;
+    case '/theme': {
+      const mode = parseThemeMode(value);
+      if (!mode) { client.addNotice('Use /theme light, /theme dark, or /theme auto.'); return; }
+      actions.setTheme?.(mode);
+      client.addNotice(`Terminal theme: ${mode}.`);
+      return;
+    }
     case '/help': actions.toggleHelp(); return;
     case '/quit': actions.exit(); return;
     default: client.addNotice(`Unknown command: ${safeText(name, 40)}. Type /help for the guide.`); return;
@@ -65,9 +74,11 @@ function nextCharacter(value: string, position: number): number {
   return Math.min(value.length, position + (Array.from(value.slice(position))[0]?.length ?? 1));
 }
 
-export function App({ client, onExit, demo = false, initialConsent = false }: AppProps) {
+export function App({ client, onExit, demo = false, initialConsent = false, initialTheme = 'auto', detectedTheme = 'dark', onThemeChange }: AppProps) {
   const { exit: inkExit } = useApp();
   const { stdout } = useStdout();
+  const [themeMode, setThemeMode] = useState<ThemeMode>(initialTheme);
+  const theme = themeMode === 'auto' ? detectedTheme : themeMode;
   const [accepted, setAccepted] = useState(initialConsent);
   const [draft, setDraft] = useState('');
   const [cursor, setCursor] = useState(0);
@@ -144,7 +155,7 @@ export function App({ client, onExit, demo = false, initialConsent = false }: Ap
     if (key.ctrl && input === 'n') { stopTyping(); client.send({ type: 'next' }); return; }
     if (key.ctrl && input === 'l') { stopTyping(); client.send({ type: 'leave' }); return; }
     if (key.pageUp) { if (help) setHelpScroll(value => Math.max(0, value - 5)); else setScroll(value => value + Math.max(4, dimensions.height - 20)); return; }
-    if (key.pageDown) { if (help) setHelpScroll(value => Math.min(13, value + 5)); else setScroll(value => Math.max(0, value - Math.max(4, dimensions.height - 20))); return; }
+    if (key.pageDown) { if (help) setHelpScroll(value => Math.min(14, value + 5)); else setScroll(value => Math.max(0, value - Math.max(4, dimensions.height - 20))); return; }
     if (key.ctrl && input === 'a') { setCursor(0); return; }
     if (key.ctrl && input === 'e') { setCursor(draft.length); return; }
     if (key.ctrl && input === 'u') { updateDraft(draft.slice(cursor), 0); return; }
@@ -182,7 +193,7 @@ export function App({ client, onExit, demo = false, initialConsent = false }: Ap
       history.current = [text, ...history.current.filter(entry => entry !== text)].slice(0, 30);
       historyPosition.current = -1;
       if (text.startsWith('/')) {
-        executeCommand(client, text, { exit, toggleHelp: () => { setHelp(value => !value); setHelpScroll(0); } });
+        executeCommand(client, text, { exit, setTheme: mode => { setThemeMode(mode); onThemeChange?.(mode); }, toggleHelp: () => { setHelp(value => !value); setHelpScroll(0); } });
         updateDraft('');
       } else if (snapshot.status !== 'chatting') {
         client.addNotice('Find a conversation first. Type /join to enter the queue.');
@@ -198,8 +209,10 @@ export function App({ client, onExit, demo = false, initialConsent = false }: Ap
     }
   });
 
-  if (!accepted) return <ConsentView width={dimensions.width} height={dimensions.height} demo={demo} />;
-  return <RouletteView snapshot={snapshot} {...dimensions} draft={draft} cursor={cursor} help={help} helpScroll={helpScroll} scroll={scroll} now={now} demo={demo} />;
+  return <ThemeProvider theme={theme}>{!accepted
+    ? <ConsentView width={dimensions.width} height={dimensions.height} demo={demo} />
+    : <RouletteView snapshot={snapshot} {...dimensions} draft={draft} cursor={cursor} help={help} helpScroll={helpScroll} scroll={scroll} now={now} demo={demo} />
+  }</ThemeProvider>;
 }
 
 export { RouletteView, ConsentView } from './view.js';
