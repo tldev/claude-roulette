@@ -166,6 +166,87 @@ describe('native Claude Mods lifecycle', () => {
     expect(vi.mocked(f.host.fetch).mock.calls).toHaveLength(count);
   });
 
+  it.each(['operator_disconnected', 'maintenance'])('waits for Turn on after an %s event', async code => {
+    const f = await connected();
+    f.emit({ type: 'error', code, message: 'The operator ended this session.' }, match);
+    await f.tick();
+    expect(f.controller.model).toMatchObject({ enabled: false, phase: 'off', roomId: null, peer: null, peerTyping: false });
+    expect(f.controller.model.error).toContain('Turn on again');
+    expect(f.cancel).toHaveBeenCalled();
+    const count = f.requests.length;
+    await f.tick();
+    f.controller.setBusy('new-turn');
+    await flush();
+    expect(f.requests).toHaveLength(count);
+    f.controller.activate();
+    await flush();
+    expect(f.controller.model).toMatchObject({ enabled: true, phase: 'queued', error: '' });
+    expect(f.requests.filter(r => r.path === '/api/session' && r.method === 'POST')).toHaveLength(2);
+    const afterReconnect = f.requests.length;
+    await f.tick();
+    expect(f.requests.length).toBeGreaterThan(afterReconnect);
+  });
+
+  it.each([
+    ['operator_disconnected', '/api/events'],
+    ['operator_disconnected', '/api/action'],
+    ['maintenance', '/api/events'],
+    ['maintenance', '/api/action'],
+  ])('waits for manual recovery after %s from %s', async (code, path) => {
+    const f = await connected();
+    const previousFetch = f.host.fetch;
+    f.host.fetch = vi.fn(async (url, init) => new URL(url).pathname === path
+      ? { ok: false, status: code === 'maintenance' ? 503 : 410, text: JSON.stringify({ error: { code, message: 'The operator ended this session.' } }) }
+      : previousFetch(url, init));
+    if (path === '/api/action') { f.controller.send('hello'); await flush(); }
+    else await f.tick();
+    expect(f.controller.model).toMatchObject({ enabled: false, phase: 'off', roomId: null, peer: null });
+    expect(f.controller.model.error).toContain('Turn on again');
+    expect(f.controller.model.error).not.toContain('Retrying');
+    const count = vi.mocked(f.host.fetch).mock.calls.length;
+    await f.tick();
+    expect(vi.mocked(f.host.fetch).mock.calls).toHaveLength(count);
+    f.host.fetch = previousFetch;
+    f.controller.activate();
+    await flush();
+    expect(f.controller.model).toMatchObject({ enabled: true, phase: 'queued' });
+  });
+
+  it('stops connection retries during maintenance and restarts on manual activation', async () => {
+    const f = fixture();
+    const previousFetch = f.host.fetch;
+    f.host.fetch = vi.fn(async () => ({ ok: false, status: 503, text: JSON.stringify({ error: { code: 'maintenance', message: 'Back soon.' } }) }));
+    f.controller.setBusy('turn');
+    f.controller.activate();
+    await flush();
+    expect(f.controller.model).toMatchObject({ enabled: false, phase: 'off', error: 'Back soon. Turn on again after the lounge reopens.' });
+    await f.tick();
+    expect(f.host.fetch).toHaveBeenCalledTimes(1);
+    f.host.fetch = previousFetch;
+    f.controller.activate();
+    await flush();
+    expect(f.controller.model).toMatchObject({ enabled: true, phase: 'queued' });
+  });
+
+  it('ignores a delayed operator error from an action sent before manual reconnection', async () => {
+    const f = await connected();
+    const previousFetch = f.host.fetch;
+    let resolveAction!: (reply: { ok: boolean; status: number; text: string }) => void;
+    f.host.fetch = vi.fn((url, init) => new URL(url).pathname === '/api/action'
+      ? new Promise<{ ok: boolean; status: number; text: string }>(resolve => { resolveAction = resolve; })
+      : previousFetch(url, init));
+    f.controller.send('before disconnect');
+    await flush();
+    f.emit({ type: 'error', code: 'operator_disconnected', message: 'Session ended.' });
+    await f.tick();
+    f.controller.activate();
+    await flush();
+    resolveAction({ ok: false, status: 410, text: JSON.stringify({ error: { code: 'operator_disconnected', message: 'Old session ended.' } }) });
+    await flush();
+    expect(f.controller.model).toMatchObject({ enabled: true, phase: 'queued', error: '' });
+    expect(f.host.toast).toHaveBeenCalledTimes(1);
+  });
+
   it('cleans up a late session creation after the user has turned the mod off', async () => {
     const f = fixture();
     const previousFetch = f.host.fetch;

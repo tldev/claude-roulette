@@ -128,7 +128,7 @@ export class RouletteController {
     this.model.scroll = 0;
     this.pausedByUser = false;
     if (this.session) this.enqueue({ type: 'next', profile: this.model.profile });
-    else { this.model.enabled = true; void this.connect(); }
+    else this.activate();
     this.redraw();
   }
 
@@ -291,6 +291,8 @@ export class RouletteController {
   }
 
   private async request(path: string, method = 'GET', body?: unknown): Promise<unknown> {
+    const generation = this.generation;
+    const sessionId = this.sessionId;
     const response = await this.host.fetch(`${this.server}${path}`, {
       method,
       headers: { 'Content-Type': 'application/json', ...(this.token ? { Authorization: `Bearer ${this.token}` } : {}), ...(this.sessionId && !(path === '/api/session' && method === 'POST') ? { 'X-Roulette-Session': this.sessionId } : {}) },
@@ -300,10 +302,15 @@ export class RouletteController {
     let value: unknown;
     try { value = response.text ? JSON.parse(response.text) : {}; } catch { throw new Error('Server did not return JSON. Check ROULETTE_URL.'); }
     if (!response.ok) {
-      if ([401, 404, 409].includes(response.status)) this.session = false;
       const detail = value as { error?: { code?: string; message?: string } };
-      if (detail.error?.code === 'duplicate_session') this.replaced();
-      if (detail.error?.code === 'banned') this.suspended();
+      if (generation === this.generation && sessionId === this.sessionId) {
+        if ([401, 404, 409].includes(response.status)) this.session = false;
+        if (detail.error?.code === 'duplicate_session') this.replaced();
+        if (detail.error?.code === 'banned') this.suspended();
+        if (detail.error?.code === 'operator_disconnected' || detail.error?.code === 'maintenance') {
+          this.operatorStopped(detail.error.code, typeof detail.error.message === 'string' ? detail.error.message : 'The server ended this session.');
+        }
+      }
       throw new Error(typeof detail.error?.message === 'string' ? detail.error.message : `Server returned HTTP ${response.status}.`);
     }
     return value;
@@ -320,6 +327,7 @@ export class RouletteController {
       if (!this.session || generation !== this.generation || sessionId !== this.sessionId) return;
       try { await this.request('/api/action', 'POST', event); await this.poll(); }
       catch (error) {
+        if (generation !== this.generation || sessionId !== this.sessionId) return;
         this.model.error = cleanText(error instanceof Error ? error.message : 'Unable to send.', 180);
         if (!this.session) this.connectionFailed(error);
         this.redraw();
@@ -336,8 +344,11 @@ export class RouletteController {
       const reply = await this.request(`/api/events?after=${this.cursor}`) as { events?: unknown; cursor?: unknown };
       if (generation !== this.generation || sessionId !== this.sessionId) return;
       if (!Array.isArray(reply.events) || reply.events.length > 1024 || typeof reply.cursor !== 'number' || !Number.isSafeInteger(reply.cursor) || reply.cursor < this.cursor) throw new Error('Invalid event response.');
-      for (const event of reply.events) this.receive(decodeServerEvent(event));
-      this.cursor = reply.cursor;
+      for (const event of reply.events) {
+        if (generation !== this.generation || sessionId !== this.sessionId || !this.session) break;
+        this.receive(decodeServerEvent(event));
+      }
+      if (generation === this.generation && sessionId === this.sessionId) this.cursor = reply.cursor;
       this.redraw();
     } catch (error) { if (generation === this.generation && sessionId === this.sessionId) this.connectionFailed(error); }
     finally { this.fetching = false; }
@@ -381,6 +392,7 @@ export class RouletteController {
       case 'error':
         if (event.code === 'duplicate_session') this.replaced();
         else if (event.code === 'banned') this.suspended();
+        else if (event.code === 'operator_disconnected' || event.code === 'maintenance') this.operatorStopped(event.code, event.message);
         else this.model.error = cleanText(event.message, 180);
         break;
       case 'pong': break;
@@ -395,16 +407,27 @@ export class RouletteController {
     this.stopRetrying('This identity connected in another Claude session. Automatic reconnect is stopped.');
   }
 
+  private operatorStopped(code: 'operator_disconnected' | 'maintenance', message: string): void {
+    const guidance = code === 'maintenance' ? 'Turn on again after the lounge reopens.' : 'Turn on again when you are ready.';
+    this.stopRetrying(`${cleanText(message, 180)} ${guidance}`);
+  }
+
   private stopRetrying(message: string): void {
+    this.generation += 1;
     this.session = false;
+    this.sessionId = '';
+    this.pausedByUser = true;
     this.model.enabled = false;
     this.model.phase = 'off';
     this.model.roomId = null;
+    this.model.peer = null;
+    this.model.peerTyping = false;
     this.timer?.cancel();
     this.timer = undefined;
     this.model.error = message;
     this.host.status(undefined);
     this.host.toast(this.model.error);
+    this.redraw();
   }
 
   private redraw(): void {

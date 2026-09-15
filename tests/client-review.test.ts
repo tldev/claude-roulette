@@ -84,6 +84,42 @@ describe('client reconnect review regressions', () => {
     expect(client.getSnapshot().error).toBe('Connected elsewhere.');
   });
 
+  it.each([
+    ['operator_disconnected', 'join'],
+    ['operator_disconnected', 'next'],
+    ['maintenance', 'join'],
+    ['maintenance', 'next'],
+  ] as const)('waits for manual %s recovery through /%s', async (code, action) => {
+    const { client, sessions } = await lounge();
+    sessions[0]!.socket.send(JSON.stringify({ type: 'error', code, message: 'The operator ended this session.' }));
+    sessions[0]!.socket.send(JSON.stringify({ type: 'queued', since: Date.now(), position: 1 }));
+    await eventually(() => client.getSnapshot().connection === 'error');
+    expect(client.getSnapshot()).toMatchObject({ status: 'paused', roomId: undefined, typing: false });
+    expect(client.getSnapshot().error).toContain('/join or /next');
+    if (code === 'maintenance') expect(client.getSnapshot().error).toContain('When the lounge reopens');
+    client.setAvailability(false);
+    client.setAvailability(true);
+    await new Promise(resolve => setTimeout(resolve, 1350));
+    expect(sessions).toHaveLength(1);
+    expect(client.send({ type: action, profile: { interests: ['rust'], language: 'en', mode: 'interests' } })).toBe(true);
+    client.send({ type: action });
+    await eventually(() => client.getSnapshot().status === 'queued');
+    expect(sessions).toHaveLength(2);
+    expect(sessions[1]!.events).toEqual([
+      { type: 'hello', protocol: 1, token: 'a'.repeat(64), available: true, profile: { interests: ['rust'], language: 'en', mode: 'interests' } },
+    ]);
+  });
+
+  it.each(['join', 'next'] as const)('reconnects an explicitly disconnected client with /%s', async action => {
+    const { client, sessions } = await lounge();
+    client.disconnect();
+    await eventually(() => sessions[0]!.socket.readyState === 3);
+    expect(client.send({ type: action })).toBe(true);
+    await eventually(() => client.getSnapshot().status === 'queued');
+    expect(sessions).toHaveLength(2);
+    expect(sessions[1]!.events[0]).toMatchObject({ type: 'hello', available: true });
+  });
+
   it('clears demo room state and pending replies when leaving or disconnecting', () => {
     vi.useFakeTimers();
     const client = new DemoClient();

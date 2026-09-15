@@ -142,14 +142,17 @@ export class RouletteClient {
     if (['message', 'typing', 'block', 'report'].includes(event.type) && this.snapshot.roomId) event = { ...event, roomId: this.snapshot.roomId } as ClientEvent;
     if (event.type === 'next' || event.type === 'join') event = { ...event, profile: event.profile ?? this.snapshot.profile };
     if (event.type === 'leave') { this.wantsQueue = false; this.patch({ status: 'paused', peer: undefined, roomId: undefined, typing: false }); }
-    if (event.type === 'join' || event.type === 'next') this.wantsQueue = true;
+    if (event.type === 'join' || event.type === 'next') {
+      this.wantsQueue = true;
+      if (event.profile) this.patch({ profile: event.profile });
+      if (this.socket?.readyState !== WebSocket.OPEN) { this.connect(); return true; }
+    }
     if (event.type === 'typing') {
       if (event.active && Date.now() - this.lastTypingSent < 1000) return true;
       this.lastTypingSent = Date.now();
     }
     if (!this.sendRaw(event)) { if (event.type !== 'typing') this.addNotice('You are offline. Reconnect before sending.'); return false; }
     if (event.type === 'availability') this.serverAvailable = event.available;
-    if ((event.type === 'join' || event.type === 'next') && event.profile) this.patch({ profile: event.profile });
     // A reconnect while paused authenticates as unavailable to avoid automatic matching.
     // Apply the requested profile first, then resume availability once the user rejoins.
     if ((event.type === 'join' || event.type === 'next') && this.snapshot.available && !this.serverAvailable) {
@@ -205,10 +208,31 @@ export class RouletteClient {
       case 'blocked': this.wantsQueue = false; this.addNotice('Blocked. You will not be matched with this person again on this identity.'); break;
       case 'stats': this.patch({ stats: event.stats }); break;
       case 'error':
+        if (event.code === 'operator_disconnected' || event.code === 'maintenance') {
+          const guidance = event.code === 'maintenance'
+            ? 'When the lounge reopens, use /join or /next to reconnect.'
+            : 'Use /join or /next to reconnect when you are ready.';
+          this.stopRetrying(`${safeText(event.message, 240)} ${guidance}`);
+          break;
+        }
         if (['banned', 'duplicate_session', 'protocol_mismatch', 'unauthorized'].includes(event.code)) this.reconnectAllowed = false;
         this.patch({ error: safeText(event.message, 300) }); break;
       case 'pong': this.lastPong = Date.now(); break;
     }
+  }
+
+  private stopRetrying(message: string): void {
+    this.stopped = true;
+    this.reconnectAllowed = false;
+    this.wantsQueue = false;
+    this.serverAvailable = false;
+    clearTimeout(this.reconnectTimer);
+    clearTimeout(this.typingTimer);
+    clearInterval(this.heartbeat);
+    const socket = this.socket;
+    this.socket = undefined;
+    socket?.close(1000, 'Waiting for manual reconnect');
+    this.patch({ connection: 'error', status: 'paused', peer: undefined, roomId: undefined, typing: false, error: message });
   }
 }
 
